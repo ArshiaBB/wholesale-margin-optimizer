@@ -116,6 +116,39 @@ with col2:
     winners = product_stats.sort_values(by='Gross_Margin_%', ascending=False).head(5)
     st.dataframe(winners[['Description', 'Total_Revenue', 'Gross_Margin_%']])
 
+# --- NEW ENTERPRISE FEATURE: ABC Inventory Analysis (Pareto) ---
+st.subheader("📦 ABC Inventory Classification (Pareto Analysis)")
+st.info("💡 **Business Logic:** 80% of revenue comes from 20% of products. Green boxes are highly profitable, Red boxes are bleeding money.")
+
+# Calculate Cumulative Revenue Share for Pareto
+product_stats = product_stats.sort_values('Total_Revenue', ascending=False)
+product_stats['Cum_Rev_Share'] = product_stats['Total_Revenue'].cumsum() / product_stats['Total_Revenue'].sum()
+
+# Assign A, B, C Classes
+conditions = [
+    (product_stats['Cum_Rev_Share'] <= 0.80),
+    (product_stats['Cum_Rev_Share'] > 0.80) & (product_stats['Cum_Rev_Share'] <= 0.95),
+    (product_stats['Cum_Rev_Share'] > 0.95)
+]
+choices = ['Class A (Top 80% Revenue)', 'Class B (Next 15%)', 'Class C (Bottom 5%)']
+product_stats['ABC_Class'] = np.select(conditions, choices, default='Class C (Bottom 5%)')
+
+# Build the Interactive Treemap using Plotly
+# We take top 100 to keep the browser fast and CEO focused
+fig_treemap = px.treemap(
+    product_stats.head(100), 
+    path=['ABC_Class', 'Description'],
+    values='Total_Revenue',
+    color='Gross_Margin_%',
+    color_continuous_scale='RdYlGn', # Red to Yellow to Green
+    color_continuous_midpoint=0,     # 0% margin is the exact middle (yellow)
+    title='Top 100 Warehouse Items: Size = Revenue, Color = Profitability'
+)
+fig_treemap.update_layout(margin=dict(t=50, l=25, r=25, b=25))
+
+# Render the stunning chart
+st.plotly_chart(fig_treemap, use_container_width=True)
+
 # 5. Operations Research: EOQ (Economic Order Quantity) Engine
 st.subheader("📦 AI Inventory Optimization (EOQ Model)")
 
