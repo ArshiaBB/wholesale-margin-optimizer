@@ -3,10 +3,38 @@ import pandas as pd
 import numpy as np
 import xgboost as xgb
 from datetime import timedelta
+import streamlit as st
+import pandas as pd
+import numpy as np
+import xgboost as xgb
+from datetime import timedelta
+import yfinance as yf  # NEW: For Live FX Rates
+import plotly.express as px  # NEW: For Beautiful Interactive Charts
 
 # 1. Page Config
 st.set_page_config(page_title="AI Margin Optimizer", layout="wide")
 st.title("AI Margin Optimizer Dashboard 🚀")
+
+# --- NEW: Live FX Tracker (Macroeconomic Context) ---
+st.markdown("### 💱 Live Macro Indicators (GBP Base)")
+@st.cache_data(ttl=3600) # Update once an hour so it doesn't crash
+def get_fx_rates():
+    try:
+        # Get GBP/USD and GBP/EUR rates
+        gbpusd = yf.Ticker("GBPUSD=X").history(period="1d")['Close'].iloc[-1]
+        gbpeur = yf.Ticker("GBPEUR=X").history(period="1d")['Close'].iloc[-1]
+        return gbpusd, gbpeur
+    except:
+        return None, None
+
+usd_rate, eur_rate = get_fx_rates()
+
+if usd_rate and eur_rate:
+    fx_col1, fx_col2, fx_col3 = st.columns(3)
+    fx_col1.metric("GBP / USD", f"${usd_rate:.3f}", help="Crucial for China/US Imports")
+    fx_col2.metric("GBP / EUR", f"€{eur_rate:.3f}", help="Crucial for EU Imports")
+    fx_col3.info("Rates are live. Crucial for COGS adjustment.")
+st.divider() # Adds a nice horizontal line
 
 # 2. Data Ingestion & Caching
 @st.cache_data
@@ -131,15 +159,20 @@ df['Date'] = df['InvoiceDate'].dt.date
 daily_sales = df.groupby('Date')['Revenue'].sum().reset_index()
 
 # Plot the Time Series chart
-st.subheader("📈 Daily Revenue Trend")
-st.line_chart(daily_sales.set_index('Date'))
+# --- UPGRADED: Plotly Interactive Chart ---
+st.subheader("📈 Daily Revenue Trend (Interactive)")
 
-# Calculate a simple 7-Day Moving Average (Basic Forecasting concept)
+# Calculate 7-Day Moving Average
 daily_sales['7_Day_Moving_Avg'] = daily_sales['Revenue'].rolling(window=7).mean()
 
-st.subheader("📊 Revenue with 7-Day Moving Average")
-st.line_chart(daily_sales.set_index('Date')[['Revenue', '7_Day_Moving_Avg']])
+# Create a beautiful Plotly chart
+fig = px.line(daily_sales, x='Date', y=['Revenue', '7_Day_Moving_Avg'], 
+              title='Revenue History vs 7-Day Trend',
+              labels={'value': 'Amount (£)', 'variable': 'Metrics'},
+              color_discrete_map={'Revenue': '#1f77b4', '7_Day_Moving_Avg': '#ff7f0e'})
 
+fig.update_layout(hovermode="x unified", legend_title_text='') # Makes hover tooltip look pro
+st.plotly_chart(fig, use_container_width=True)
 # 7. Machine Learning: Predictive Analytics with XGBoost
 st.header("4. AI Revenue Forecast (Next 14 Days)")
 
